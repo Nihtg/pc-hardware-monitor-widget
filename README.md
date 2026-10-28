@@ -1,7 +1,7 @@
 # 🖥️ Minimalist PC Hardware & Network Monitor Widget
 
 <p align="center">
-  <img src="assets/preview.png" alt="PC Monitor Widget Preview" width="300" />
+  <img src="assets/widget-preview.png" alt="PC Monitor Widget Preview" width="300" />
 </p>
 
 <p align="center">
