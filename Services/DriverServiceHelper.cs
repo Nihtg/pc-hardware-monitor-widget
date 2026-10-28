@@ -20,6 +20,8 @@ internal static class DriverServiceHelper
     private const uint GENERIC_WRITE = 0x40000000;
     private const uint OPEN_EXISTING = 3;
 
+    private const string ExpectedDriverSha256 = "11BD2C9F9E2397C9A16E0990E4ED2CF0679498FE0FD418A3DFDAC60B5C160EE5";
+
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern SafeFileHandle CreateFile(
         string lpFileName,
@@ -61,6 +63,47 @@ internal static class DriverServiceHelper
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool CloseServiceHandle(IntPtr hSCObject);
 
+    private static bool ValidateDriverHash(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return false;
+            using var sha = System.Security.Cryptography.SHA256.Create();
+            using var stream = File.OpenRead(path);
+            byte[] hash = sha.ComputeHash(stream);
+            string hashStr = Convert.ToHexString(hash);
+            return string.Equals(hashStr, ExpectedDriverSha256, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void SecureDirectory(string dirPath)
+    {
+        try
+        {
+            var dirInfo = new DirectoryInfo(dirPath);
+            var sec = new DirectorySecurity();
+            sec.SetAccessRuleProtection(true, false);
+
+            var admins = new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.BuiltinAdministratorsSid, null);
+            var system = new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.LocalSystemSid, null);
+            var users = new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.BuiltinUsersSid, null);
+
+            sec.AddAccessRule(new FileSystemAccessRule(admins, FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+            sec.AddAccessRule(new FileSystemAccessRule(system, FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+            sec.AddAccessRule(new FileSystemAccessRule(users, FileSystemRights.ReadAndExecute, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+
+            dirInfo.SetAccessControl(sec);
+        }
+        catch (Exception ex)
+        {
+            App.LogDebug($"SecureDirectory notice: {ex.Message}");
+        }
+    }
+
     public static bool IsDriverOpen()
     {
         try
@@ -87,10 +130,13 @@ internal static class DriverServiceHelper
             // 1. Extract WinRing0x64.sys to CommonApplicationData (pure ASCII C:\ProgramData\MiniHardwareWidget\...)
             string targetDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "MiniHardwareWidget");
             Directory.CreateDirectory(targetDir);
+            SecureDirectory(targetDir);
             string targetSys = Path.Combine(targetDir, "WinRing0x64.sys");
 
-            if (!File.Exists(targetSys) || new FileInfo(targetSys).Length != 14544)
+            if (!File.Exists(targetSys) || !ValidateDriverHash(targetSys))
             {
+                try { if (File.Exists(targetSys)) File.Delete(targetSys); } catch { }
+
                 var asm = typeof(LibreHardwareMonitor.Hardware.Computer).Assembly;
                 using var stream = asm.GetManifestResourceStream("LibreHardwareMonitor.Resources.WinRing0x64.gz");
                 if (stream != null)
@@ -104,9 +150,10 @@ internal static class DriverServiceHelper
                 }
             }
 
-            if (!File.Exists(targetSys))
+            // DevSecOps Hardening: Verify cryptographic hash of the driver binary before execution
+            if (!ValidateDriverHash(targetSys))
             {
-                App.LogDebug("Driver file extraction failed: target file does not exist.");
+                App.LogDebug("CRITICAL: Driver SHA-256 hash mismatch! Driver execution aborted for security.");
                 return;
             }
 

@@ -16,8 +16,19 @@ public partial class App : Application
         catch { }
     }
 
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetDefaultDllDirectories(uint directoryFlags);
+    private const uint LOAD_LIBRARY_SEARCH_DEFAULT_DIRS = 0x00001000;
+
     protected override void OnStartup(StartupEventArgs e)
     {
+        // DevSecOps Hardening: Prevent DLL Search Order Hijacking
+        try
+        {
+            SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+        }
+        catch { }
+
         LogDebug("App.OnStartup BEGIN");
 
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
