@@ -219,8 +219,20 @@ public class HardwareMonitorService : IDisposable
                         }
                         else if (snapshot.CpuLoad > 0)
                         {
-                            // Accurate estimation based on CPU load for i5-10400 (TDP 65W, idle 12W)
-                            snapshot.CpuPower = 12.0f + (snapshot.CpuLoad / 100.0f) * 53.0f;
+                            // Smart estimation based on CPU architecture
+                            float baseIdle = 12.0f;
+                            float maxPower = 65.0f;
+                            if (snapshot.CpuName.Contains("i7") || snapshot.CpuName.Contains("14700") || snapshot.CpuName.Contains("13700") || snapshot.CpuName.Contains("Ryzen 7"))
+                            {
+                                baseIdle = 18.0f;
+                                maxPower = 200.0f;
+                            }
+                            else if (snapshot.CpuName.Contains("i9") || snapshot.CpuName.Contains("Ryzen 9"))
+                            {
+                                baseIdle = 22.0f;
+                                maxPower = 250.0f;
+                            }
+                            snapshot.CpuPower = baseIdle + (snapshot.CpuLoad / 100.0f) * (maxPower - baseIdle);
                         }
                     }
                 }
