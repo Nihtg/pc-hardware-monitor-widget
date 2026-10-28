@@ -1,0 +1,19 @@
+## Visual Studio / .NET build artifacts
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.log
+
+## Published bundles (optional binaries)
+publish/
+publish_x64/
+publish_bundle/
+
+## IDE
+.vs/
+.idea/
+.vscode/
