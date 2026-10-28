@@ -56,12 +56,17 @@ public class HardwareMonitorService : IDisposable
     {
         App.LogDebug($"WorkerLoop started on dedicated thread ID: {Environment.CurrentManagedThreadId}");
 
+        if (_isAdmin)
+        {
+            DriverServiceHelper.EnsureDriverServiceRunning();
+        }
+
         _computer = new Computer
         {
             IsCpuEnabled = true,
             IsGpuEnabled = true,
             IsMotherboardEnabled = true,
-            IsControllerEnabled = false,
+            IsControllerEnabled = true,
             IsMemoryEnabled = false,
             IsStorageEnabled = false,
             IsNetworkEnabled = false
@@ -178,6 +183,23 @@ public class HardwareMonitorService : IDisposable
                                 {
                                     snapshot.CpuTemp = mbCpuTemp.Value.Value;
                                 }
+                            }
+                        }
+                    }
+
+                    // Global fallback for CPU temperature across all motherboard / controller devices
+                    if (snapshot.CpuTemp <= 0)
+                    {
+                        foreach (var hw in _computer.Hardware)
+                        {
+                            var anyCpuTemp = FindSensorRecursive(hw, s => s.SensorType == SensorType.Temperature 
+                                && s.Value.HasValue && s.Value > 0 
+                                && !s.Name.Contains("Distance") 
+                                && (s.Name.Contains("CPU") || hw.Name.Contains("CPU") || hw.HardwareType == HardwareType.Cpu));
+                            if (anyCpuTemp?.Value != null && anyCpuTemp.Value > 0)
+                            {
+                                snapshot.CpuTemp = anyCpuTemp.Value.Value;
+                                break;
                             }
                         }
                     }

@@ -8,14 +8,12 @@ public partial class App : Application
 {
     public static void LogDebug(string msg)
     {
-#if DEBUG
         try
         {
-            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "debug_run.log");
+            string path = Path.Combine(Path.GetTempPath(), "MiniHardwareWidget_debug.log");
             File.AppendAllText(path, $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\n");
         }
         catch { }
-#endif
     }
 
     protected override void OnStartup(StartupEventArgs e)
